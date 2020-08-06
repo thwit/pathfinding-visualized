@@ -40,7 +40,6 @@ def collision(a1, a2, obstacles):
 def distance(a, b):
     return np.linalg.norm(a-b)
 
-
 ### NODE ###
 class Node:
     def __init__(self, point, parent=None, cost=None):
@@ -58,7 +57,7 @@ class RRT:
         self.start = Node(start)
         self.goal = Node(goal)
         self.nodes = [self.start]
-        self.growth = 5
+        self.growth = 25
 
     def draw_edge(self, a, b):
         pygame.draw.line(self.image, (9, 0, 0), (int(a.point[0]), int(a.point[1])),
@@ -104,10 +103,11 @@ class RRT:
 
 
     def new_scaled(self, qnear, qrand):
-        if distance(qnear.point, qrand.point) < self.growth * self.growth:
+        if distance(qnear.point, qrand.point) < self.growth:
             return qrand
         temp = qrand.point - qnear.point
-        temp = temp / np.sqrt(np.sum(temp**2))
+        temp = temp / np.sqrt(np.sum(temp * temp))
+        temp = qnear.point + (temp * self.growth)
         return Node(qnear.point + (temp * self.growth))
 
     def rand(self):
@@ -120,6 +120,7 @@ class RRTSTAR(RRT):
     def __init__(self, screen, width, height, obstacles, start, goal):
         super().__init__(screen, width, height, obstacles, np.array([width // 2, height // 2]), goal)
         self.r = 50
+        self.growth = 50
         self.nodes[0].cost = 0
 
     def redraw(self):
@@ -162,11 +163,12 @@ class RRTSTAR(RRT):
             qmin = qnear
             cmin = qnear.cost + distance(qnew.point, qnear.point)
             
+            # connect newest point
             for n in neighbours:
                 if not self.valid_edge(qnew, n):
                     continue
                 
-                if n.cost + distance(qnew.point, n.point) < cmin:
+                if n.cost + distance(qnew.point, n.point) < cmin and distance(qnew.point, n.point) < self.growth:
                     qmin = n
                     cmin = n.cost + distance(qnew.point, n.point)
 
@@ -174,11 +176,12 @@ class RRTSTAR(RRT):
             qnew.cost = cmin
             self.nodes.append(qnew)
 
+            # rebuild tree
             for n in neighbours:
                 if not self.valid_edge(qnew, n):
                     continue
 
-                if qnew.cost + distance(qnew.point, n.point) < n.cost:
+                if qnew.cost + distance(qnew.point, n.point) < n.cost and distance(qnew.point, n.point) < self.growth:
                     n.parent = qnew
                     n.cost = qnew.cost + distance(qnew.point, n.point) 
                 self.redraw()
@@ -193,7 +196,7 @@ class RRTSTAR(RRT):
         nbs = []
 
         for n in self.nodes:
-            if distance(node.point, n.point) < self.r:
+            if n != node and distance(node.point, n.point) < self.r:
                 nbs.append(n)
         return nbs
 
@@ -215,6 +218,7 @@ size = width, height = 600,600
 clock = pygame.time.Clock()
 
 obstacles = pygame.sprite.Group([Block(BLACK, 100, 250, 200, 0), Block(BLACK, 100, 250, 200, height - 250), Block(BLACK, 100, 425, 325, 50)])
+obstacles = pygame.sprite.Group()
 start = np.array([10,300])
 goal = np.array([590,300])
 
