@@ -58,7 +58,7 @@ class RRT:
         self.start = Node(start)
         self.goal = Node(goal)
         self.nodes = [self.start]
-        self.growth = 25
+        self.growth = 5
 
     def draw_edge(self, a, b):
         pygame.draw.line(self.image, (9, 0, 0), (int(a.point[0]), int(a.point[1])),
@@ -118,11 +118,24 @@ class RRT:
 
 class RRTSTAR(RRT):
     def __init__(self, screen, width, height, obstacles, start, goal):
-        super().__init__(screen, width, height, obstacles, start, goal)
+        super().__init__(screen, width, height, obstacles, np.array([width // 2, height // 2]), goal)
         self.r = 50
+        self.nodes[0].cost = 0
+
+    def redraw(self):
+        self.image.fill(WHITE)
+        self.obstacles.draw(self.image)
+
+        for n in self.nodes:
+            if n.parent is None:
+                continue
+            pygame.draw.line(self.image, (9, 0, 0), (int(n.point[0]), int(n.point[1])),
+                         (int(n.parent.point[0]), int(n.parent.point[1])), 1)
+        pygame.display.update()
+
 
     def run(self):
-        if self.valid_edge(self.start, self.goal):
+        if self.valid_edge(self.start, self.goal) and False:
             self.draw_edge(self.start, self.goal)
             self.draw_done()
             return
@@ -139,18 +152,54 @@ class RRTSTAR(RRT):
 
             if qnew.point[0] < 0 or qnew.point[0] >= self.width or qnew.point[1] < 0 or qnew.point[1] >= self.height:
                     continue
-
-            qnew.cost = distance(qnew.point, qnear.point)
+                    
+            if not self.valid_edge(qnew, qnear):
+                continue
+            
 
             neighbours = self.neighbours(qnew)
 
+            qmin = qnear
+            cmin = qnear.cost + distance(qnew.point, qnear.point)
+            
             for n in neighbours:
-                if qnew.cost + distance(qnew.point, n.point) < n.cost:
-                    if valid_edge(qnew, n):
-                        n.cost =  qnew.cost + distance(qnew.point, n.point)
-                        n.parent = qnew
+                if not self.valid_edge(qnew, n):
+                    continue
+                
+                if n.cost + distance(qnew.point, n.point) < cmin:
+                    qmin = n
+                    cmin = n.cost + distance(qnew.point, n.point)
 
-                    
+            qnew.parent = qmin
+            qnew.cost = cmin
+            self.nodes.append(qnew)
+
+            for n in neighbours:
+                if not self.valid_edge(qnew, n):
+                    continue
+
+                if qnew.cost + distance(qnew.point, n.point) < n.cost:
+                    n.parent = qnew
+                    n.cost = qnew.cost + distance(qnew.point, n.point) 
+                self.redraw()
+
+            if self.valid_edge(qnew, self.goal) and False:
+                self.draw_edge(qnew, qnew.parent)
+                self.draw_edge(qnew, self.goal)
+                self.draw_done()
+                return
+
+    def neighbours(self, node):
+        nbs = []
+
+        for n in self.nodes:
+            if distance(node.point, n.point) < self.r:
+                nbs.append(n)
+        return nbs
+
+
+            
+            
 
 
 
@@ -166,7 +215,6 @@ size = width, height = 600,600
 clock = pygame.time.Clock()
 
 obstacles = pygame.sprite.Group([Block(BLACK, 100, 250, 200, 0), Block(BLACK, 100, 250, 200, height - 250), Block(BLACK, 100, 425, 325, 50)])
-
 start = np.array([10,300])
 goal = np.array([590,300])
 
@@ -181,7 +229,8 @@ bg = pygame.Color("#e7eaf6")
 pygame.display.set_caption("My Game")
 
 algorithms = [RRT(screen, width, height, obstacles, start, goal)]
-
+screen.fill(WHITE)
+pygame.display.update()
 
 while True:
     screen.fill(WHITE)
@@ -197,7 +246,7 @@ while True:
 
     obstacles.draw(screen)
 
-    RRT(screen, width, height, obstacles, start, goal).run()
+    RRTSTAR(screen, width, height, obstacles, start, goal).run()
     
     pygame.display.update()
     clock.tick(60)
